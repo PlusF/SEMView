@@ -23,6 +23,8 @@ def read_txt(list_folder):
     for i, folder_path in enumerate(list_folder):
         folder_path = folder_path.strip('"') # windowsの「パスをコピー」ボタンでは""がついてきてしまうため
         txt_list = []
+        if folder_path == '':
+            continue
         for name in os.listdir(folder_path):
             if '.txt' in name:
                 txt_list.append(name[:-4])
