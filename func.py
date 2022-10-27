@@ -6,22 +6,11 @@ from PIL import Image, ImageTk, ImageEnhance
 from dataclasses import dataclass
 
 
-# osによって区切り文字が違う
-def get_slash():
-    if os.name == 'nt':
-        return '\\'
-    elif os.name == 'posix':
-        return '/'
-
-    return -1
-
-
 # リスト内のフォルダにあるテキストファイルを読み込み、DataFrameに格納、まとめる
 def read_txt(list_folder):
-    slash = get_slash()
     dict_df = {}
     for i, folder_path in enumerate(list_folder):
-        folder_path = folder_path.strip('"') # windowsの「パスをコピー」ボタンでは""がついてきてしまうため
+        folder_path = folder_path.strip('"')  # windowsの「パスをコピー」ボタンでは""がついてきてしまうため
         txt_list = []
         if folder_path == '':
             continue
@@ -32,14 +21,14 @@ def read_txt(list_folder):
         # txtファイルの中身を読み込み，データの成型
         data = []
         for name in txt_list:
-            df_raw = pd.read_csv(folder_path + slash + name + '.txt')
+            df_raw = pd.read_csv(os.path.join(folder_path, f'{name}.txt'))
             df_raw = df_raw['[SemImageFile]'].str.split('=', expand=True)
             df_raw.set_index(0, inplace=True)
             # SEMの記録ではy座標は下向きが正っぽい？
             data.append([name,
-                int(df_raw.loc['StagePositionX'][1])/1000000, 
-                int(df_raw.loc['StagePositionY'][1])/1000000, 
-                int(df_raw.loc['Magnification'][1])])
+                         int(df_raw.loc['StagePositionX'][1]) / 1000000,
+                         int(df_raw.loc['StagePositionY'][1]) / 1000000,
+                         int(df_raw.loc['Magnification'][1])])
         df_tmp = pd.DataFrame(data=data, columns=['name', 'x', 'y', 'mag'])
         df_tmp.set_index('name', inplace=True)
         df_tmp.sort_values(by=["mag"], ascending=True, inplace=True)
@@ -63,7 +52,6 @@ class Viewer(tk.Frame):
         super().__init__(master)
         self.master = master
         self.dir = dir
-        self.slash = get_slash()
         self.df = df
         self.create_widgets()
         self.plot()
@@ -90,12 +78,14 @@ class Viewer(tk.Frame):
         self.contrast_val.set(50)
 
         # master内のwidget
-        self.canvas = tk.Canvas(self.master, width=self.width, height=self.height, cursor='plus', bg='ivory', bd=3, relief=tk.RIDGE) # 撮影した点をプロットする用
-        self.frame_pro = tk.Frame(self.master, width=self.width, height=self.height/2) # 拡大，縮小，移動など
-        self.canvas_img = tk.Canvas(self.master, width=self.width, height=self.height, cursor='circle', bd=3, relief=tk.RIDGE) # 画像表示用
-        self.frame_con = tk.Frame(self.master, width=self.width, height=self.height/2) # 明るさ，コントラスト調整用
-        self.scale_move_x = tk.Scale(self.master, variable=self.move_x_val, command=self.draw, orient=tk.HORIZONTAL, length=self.width, resolution=0.1, from_=-2*self.width, to_=2*self.width, showvalue=False)
-        self.scale_move_y = tk.Scale(self.master, variable=self.move_y_val, command=self.draw, orient=tk.VERTICAL, length=self.height, resolution=0.1, from_=-2*self.height, to_=2*self.height, showvalue=False)
+        self.canvas = tk.Canvas(self.master, width=self.width, height=self.height, cursor='plus', bg='ivory', bd=3, relief=tk.RIDGE)  # 撮影した点をプロットする用
+        self.frame_pro = tk.Frame(self.master, width=self.width, height=self.height / 2)  # 拡大，縮小，移動など
+        self.canvas_img = tk.Canvas(self.master, width=self.width, height=self.height, cursor='circle', bd=3, relief=tk.RIDGE)  # 画像表示用
+        self.frame_con = tk.Frame(self.master, width=self.width, height=self.height / 2)  # 明るさ，コントラスト調整用
+        self.scale_move_x = tk.Scale(self.master, variable=self.move_x_val, command=self.draw, orient=tk.HORIZONTAL, length=self.width,
+                                     resolution=0.1, from_=-2 * self.width, to_=2 * self.width, showvalue=False)
+        self.scale_move_y = tk.Scale(self.master, variable=self.move_y_val, command=self.draw, orient=tk.VERTICAL, length=self.height, resolution=0.1,
+                                     from_=-2 * self.height, to_=2 * self.height, showvalue=False)
 
         self.canvas.grid(row=0, column=0, padx=0, pady=0)
         self.scale_move_x.grid(row=1, column=0)
@@ -106,8 +96,9 @@ class Viewer(tk.Frame):
 
         # canvas内のwidget(図形)
         # 実際の長さとピクセルについて：5mmはself.zoom_val=30のとき150px，つまりy[px]=x[mm]*self.zoom_val
-        self.canvas.create_rectangle(self.width-self.zoom_val.get()*5, self.height-20, self.width, self.height, tags='scale_bar', fill='white', width=2, state=tk.DISABLED)
-        self.canvas.create_text(self.width-50, self.height-10, tags='scale_val', text=self.scale_list[0])
+        self.canvas.create_rectangle(self.width - self.zoom_val.get() * 5, self.height - 20, self.width, self.height, tags='scale_bar', fill='white',
+                                     width=2, state=tk.DISABLED)
+        self.canvas.create_text(self.width - 50, self.height - 10, tags='scale_val', text=self.scale_list[0])
 
         # frame_pro内のwidget
         self.label_description = tk.Label(self.frame_pro, text='左クリックでSEM像表示\n右クリックで原点設定(相対座標用)')
@@ -120,14 +111,16 @@ class Viewer(tk.Frame):
         self.label_selected_name = tk.Label(self.frame_pro, text='ファイル名: ')
         self.label_selected_filename = tk.Label(self.frame_pro, textvariable=self.rect_tag)
         self.label_scale_zoom = tk.Label(self.frame_pro, text='拡大/縮小')
-        self.scale_zoom = tk.Scale(self.frame_pro, variable=self.zoom_val, command=self.draw, orient=tk.HORIZONTAL, length=200, from_=3, to_=600, resolution=1, showvalue=False)
+        self.scale_zoom = tk.Scale(self.frame_pro, variable=self.zoom_val, command=self.draw, orient=tk.HORIZONTAL, length=200, from_=3, to_=600,
+                                   resolution=1, showvalue=False)
         self.button_reset_zoom = tk.Button(self.frame_pro, command=self.reset_zoom, text='Reset', bd=0, activeforeground='red', relief=tk.RAISED)
         self.label_scale_rotate = tk.Label(self.frame_pro, text='回転')
-        self.scale_rotate = tk.Scale(self.frame_pro, variable=self.rotarion_val, command=self.draw, orient=tk.HORIZONTAL, length=200, from_=-45, to_=45, resolution=0.1, showvalue=True)
+        self.scale_rotate = tk.Scale(self.frame_pro, variable=self.rotarion_val, command=self.draw, orient=tk.HORIZONTAL, length=200, from_=-45,
+                                     to_=45, resolution=0.1, showvalue=True)
         self.button_reset_rotation = tk.Button(self.frame_pro, command=self.reset_rotatation, text='Reset', activeforeground='red', relief=tk.RAISED)
 
         self.label_description.grid(row=0, column=1)
-        self.label_scale_zoom.grid(row=1,column=0)
+        self.label_scale_zoom.grid(row=1, column=0)
         self.scale_zoom.grid(row=1, column=1)
         self.button_reset_zoom.grid(row=1, column=2)
         self.label_scale_rotate.grid(row=2, column=0)
@@ -145,14 +138,16 @@ class Viewer(tk.Frame):
         # frame_con内のwidget
         self.label_brightness = tk.Label(self.frame_con, text='Brightness')
         self.label_contrast = tk.Label(self.frame_con, text='Contrast')
-        self.scale_brightness = tk.Scale(self.frame_con, variable=self.brightness_val, command=None, orient=tk.HORIZONTAL, length=self.width/2, from_=1, to_=500, resolution=1, showvalue=False)
-        self.scale_contrast = tk.Scale(self.frame_con, variable=self.contrast_val, command=None, orient=tk.HORIZONTAL, length=self.width/2, from_=1, to_=500, resolution=1, showvalue=False)
-        self.button_reload = tk.Button(self.frame_con, command=self.show_img, text='Reload',activeforeground='red', relief=tk.RAISED)
+        self.scale_brightness = tk.Scale(self.frame_con, variable=self.brightness_val, command=None, orient=tk.HORIZONTAL, length=self.width / 2,
+                                         from_=1, to_=500, resolution=1, showvalue=False)
+        self.scale_contrast = tk.Scale(self.frame_con, variable=self.contrast_val, command=None, orient=tk.HORIZONTAL, length=self.width / 2, from_=1,
+                                       to_=500, resolution=1, showvalue=False)
+        self.button_reload = tk.Button(self.frame_con, command=self.show_img, text='Reload', activeforeground='red', relief=tk.RAISED)
 
         self.label_brightness.grid(row=0, column=0)
         self.scale_brightness.grid(row=0, column=1)
         self.label_contrast.grid(row=1, column=0)
-        self.scale_contrast.grid(row=1 ,column=1)
+        self.scale_contrast.grid(row=1, column=1)
         self.button_reload.grid(row=2, column=1)
 
     # SEM画像の座標をプロット
@@ -161,41 +156,42 @@ class Viewer(tk.Frame):
         self.mean_y = self.df.y.mean()
         self.df_tmp = self.df.copy()
         for (index, item), (index_tmp, item_tmp) in zip(self.df.iterrows(), self.df_tmp.iterrows()):
-            item_tmp.x = (item.x-self.mean_x)*self.zoom_val.get()+self.width/2
-            item_tmp.y = (item.y-self.mean_y)*self.zoom_val.get()+self.height/2
-            item_tmp.mag = 1/(item.mag)*self.zoom_val.get()*30 # 'mag'の列をサイズ情報で置換する
+            item_tmp.x = (item.x - self.mean_x) * self.zoom_val.get() + self.width / 2
+            item_tmp.y = (item.y - self.mean_y) * self.zoom_val.get() + self.height / 2
+            item_tmp.mag = 1 / (item.mag) * self.zoom_val.get() * 30  # 'mag'の列をサイズ情報で置換する
             # SEM像の範囲と同じ大きさの長方形を描画，1000倍で120um*90um（self.zoom_val=30で3.6px*2.7px）の像とする．
-            self.canvas.create_rectangle(item_tmp.x, item_tmp.y, item_tmp.x+item_tmp.mag*4, item_tmp.y+item_tmp.mag*3, tags=index, fill='white', activeoutline='red')
+            self.canvas.create_rectangle(item_tmp.x, item_tmp.y, item_tmp.x + item_tmp.mag * 4, item_tmp.y + item_tmp.mag * 3, tags=index,
+                                         fill='white', activeoutline='red')
             self.canvas.lift(index)
             self.canvas.tag_bind(index, '<Button-1>', self.select)
             self.canvas.tag_bind(index, '<Button-2>', self.set_std)
             self.canvas.tag_bind(index, '<Button-3>', self.set_std)
         self.canvas.lift('scale_bar')
         self.canvas.lift('scale_val')
-    
+
     def select(self, event):
         self.pre_rect_tag = self.rect_tag.get()
         self.rect_tag.set(self.canvas.gettags(self.canvas.find_closest(event.x, event.y))[0])
-        self.show_img() # tif画像を表示
+        self.show_img()  # tif画像を表示
         # 回転処理
-        tmp_x_0 = self.df.x[self.rect_tag.get()]-self.std_x.get()
-        tmp_y_0 = self.df.y[self.rect_tag.get()]-self.std_y.get()
+        tmp_x_0 = self.df.x[self.rect_tag.get()] - self.std_x.get()
+        tmp_y_0 = self.df.y[self.rect_tag.get()] - self.std_y.get()
         tmp_theta = math.radians(self.rotarion_val.get())
-        tmp_x = math.cos(tmp_theta)*tmp_x_0-math.sin(tmp_theta)*tmp_y_0
-        tmp_y = math.sin(tmp_theta)*tmp_x_0+math.cos(tmp_theta)*tmp_y_0
+        tmp_x = math.cos(tmp_theta) * tmp_x_0 - math.sin(tmp_theta) * tmp_y_0
+        tmp_y = math.sin(tmp_theta) * tmp_x_0 + math.cos(tmp_theta) * tmp_y_0
         self.selected_x.set(round(tmp_x, 3))
-        self.selected_y.set(-1*round(tmp_y, 3))
+        self.selected_y.set(-1 * round(tmp_y, 3))
         event.widget.itemconfig(self.pre_rect_tag, fill='white')
         event.widget.itemconfig(self.rect_tag.get(), fill='red')
 
     def show_img(self):
         self.canvas_img.delete('all')
-        self.img = Image.open(self.dir + self.slash + self.rect_tag.get() + '.tif')
+        self.img = Image.open(os.path.join(self.dir, f'{self.rect_tag.get()}.tif'))
         self.img = self.brightness(self.img)
         self.img = self.contrast(self.img)
         self.img = self.img.resize((640, 480))
         self.img_show = ImageTk.PhotoImage(image=self.img)
-        self.canvas_img.create_image(self.width/2, self.height/2, image=self.img_show)
+        self.canvas_img.create_image(self.width / 2, self.height / 2, image=self.img_show)
 
     def set_std(self, event):
         self.pre_std_rect_tag = self.std_rect_tag
@@ -208,17 +204,17 @@ class Viewer(tk.Frame):
     def draw(self, event):
         for (index, item), (index_tmp, item_tmp) in zip(self.df.iterrows(), self.df_tmp.iterrows()):
             # 平均値を基準にして拡大処理
-            item_tmp.x = (item.x-self.mean_x)*self.zoom_val.get()
-            item_tmp.y = (item.y-self.mean_y)*self.zoom_val.get()
+            item_tmp.x = (item.x - self.mean_x) * self.zoom_val.get()
+            item_tmp.y = (item.y - self.mean_y) * self.zoom_val.get()
             # 回転処理 θ [rad]
             tmp_theta = math.radians(self.rotarion_val.get())
-            tmp_x = math.cos(tmp_theta)*item_tmp.x-math.sin(tmp_theta)*item_tmp.y
-            tmp_y = math.sin(tmp_theta)*item_tmp.x+math.cos(tmp_theta)*item_tmp.y
+            tmp_x = math.cos(tmp_theta) * item_tmp.x - math.sin(tmp_theta) * item_tmp.y
+            tmp_y = math.sin(tmp_theta) * item_tmp.x + math.cos(tmp_theta) * item_tmp.y
             # 移動処理と描画用の座標に補正
-            tmp_x += self.width/2-self.move_x_val.get()
-            tmp_y += self.height/2-self.move_y_val.get()
-            item_tmp.mag= 1/(item.mag)*self.zoom_val.get()*30
-            self.canvas.coords(index, tmp_x, tmp_y, tmp_x+item_tmp.mag*4, tmp_y+item_tmp.mag*3)
+            tmp_x += self.width / 2 - self.move_x_val.get()
+            tmp_y += self.height / 2 - self.move_y_val.get()
+            item_tmp.mag = 1 / (item.mag) * self.zoom_val.get() * 30
+            self.canvas.coords(index, tmp_x, tmp_y, tmp_x + item_tmp.mag * 4, tmp_y + item_tmp.mag * 3)
         self.zoom_scale_bar()
 
     def reset_rotatation(self):
@@ -228,16 +224,16 @@ class Viewer(tk.Frame):
     def zoom_scale_bar(self):
         tmp_zoom_val = self.zoom_val.get()
         if 3 <= tmp_zoom_val < 75:
-            self.canvas.coords('scale_bar', self.width-tmp_zoom_val*5, self.height-20, self.width, self.height)
+            self.canvas.coords('scale_bar', self.width - tmp_zoom_val * 5, self.height - 20, self.width, self.height)
             self.canvas.itemconfigure('scale_val', text=self.scale_list[0])
         elif 75 <= tmp_zoom_val < 150:
-            self.canvas.coords('scale_bar', self.width-tmp_zoom_val*2, self.height-20, self.width, self.height)
+            self.canvas.coords('scale_bar', self.width - tmp_zoom_val * 2, self.height - 20, self.width, self.height)
             self.canvas.itemconfigure('scale_val', text=self.scale_list[1])
         elif 150 <= tmp_zoom_val < 300:
-            self.canvas.coords('scale_bar', self.width-tmp_zoom_val*1, self.height-20, self.width, self.height)
+            self.canvas.coords('scale_bar', self.width - tmp_zoom_val * 1, self.height - 20, self.width, self.height)
             self.canvas.itemconfigure('scale_val', text=self.scale_list[2])
         elif 300 <= tmp_zoom_val < 600:
-            self.canvas.coords('scale_bar', self.width-tmp_zoom_val*0.5, self.height-20, self.width, self.height)
+            self.canvas.coords('scale_bar', self.width - tmp_zoom_val * 0.5, self.height - 20, self.width, self.height)
             self.canvas.itemconfigure('scale_val', text=self.scale_list[3])
 
     def reset_zoom(self):
@@ -249,11 +245,11 @@ class Viewer(tk.Frame):
     def brightness(self, img):
         self.brightness_val.set(self.scale_brightness.get())
         img_enhancer = ImageEnhance.Brightness(img)
-        enhanced_img = img_enhancer.enhance(self.brightness_val.get()*0.02)
+        enhanced_img = img_enhancer.enhance(self.brightness_val.get() * 0.02)
         return enhanced_img
 
     def contrast(self, img):
         self.contrast_val.set(self.scale_contrast.get())
         img_enhancer = ImageEnhance.Contrast(img)
-        enhanced_img = img_enhancer.enhance(self.contrast_val.get()*0.02)
+        enhanced_img = img_enhancer.enhance(self.contrast_val.get() * 0.02)
         return enhanced_img

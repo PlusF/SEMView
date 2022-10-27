@@ -16,7 +16,6 @@ class HomeWindow(tk.Frame):
     def create_widgets(self):
         self.folders_var = tk.StringVar()
         self.dir = os.getcwd()
-        self.slash = func.get_slash()
         self.padx = 10
         self.pady = 10
         self.num_folders = 0
@@ -43,12 +42,12 @@ class HomeWindow(tk.Frame):
             for value in self.dict_df.values():
                 self.tab_tmp = tk.Frame(master=self.notebook)
                 self.frame_tmp = func.Viewer(master=self.tab_tmp, dir=value.dir, df=value.df)
-                self.notebook.add(self.tab_tmp, text=value.dir[value.dir.rfind(self.slash)+1:])
+                self.notebook.add(self.tab_tmp, text=value.dir[value.dir.rfind(os.sep)+1:])
             self.notebook.pack()
 
     def add_folder(self):
         # カレントディレクトリからフォルダ検索
-        fld = filedialog.askdirectory(initialdir = self.dir)
+        fld = filedialog.askdirectory(initialdir=self.dir)
         self.list_folder.insert(tk.END, fld)
         # 選択したフォルダのあるディレクトリに移動
         slash_index = fld[:-1].rfind('/')
