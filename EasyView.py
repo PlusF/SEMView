@@ -29,12 +29,6 @@ class EasyHomeWindow(tk.Frame):
         self.entry_x_pixel = tk.Entry(self.master, textvariable=self.x_pixel, width=10)
         self.label_cross_pixel = tk.Label(self.master, text='x')
         self.entry_y_pixel = tk.Entry(self.master, textvariable=self.y_pixel, width=10)
-        self.label_size_subst = tk.Label(self.master, text='基板サイズ [mm]：')
-        self.x_subst = tk.IntVar(value=20)
-        self.y_subst = tk.IntVar(value=20)
-        self.entry_x_subst = tk.Entry(self.master, textvariable=self.x_subst, width=10)
-        self.label_cross_subst = tk.Label(self.master, text='x')
-        self.entry_y_subst = tk.Entry(self.master, textvariable=self.y_subst, width=10)
         self.button_view = tk.Button(self.master, text='実行', command=self.view, activeforeground='red', relief=tk.RAISED)
 
         self.button_add_folder.grid(row=0, column=0, columnspan=4, pady=self.pady)
@@ -43,10 +37,6 @@ class EasyHomeWindow(tk.Frame):
         self.entry_x_pixel.grid(row=2, column=1, pady=self.pady)
         self.label_cross_pixel.grid(row=2, column=2, pady=self.pady)
         self.entry_y_pixel.grid(row=2, column=3, pady=self.pady)
-        self.label_size_subst.grid(row=3, column=0, pady=self.pady)
-        self.entry_x_subst.grid(row=3, column=1, pady=self.pady)
-        self.label_cross_subst.grid(row=3, column=2, pady=self.pady)
-        self.entry_y_subst.grid(row=3, column=3, pady=self.pady)
         self.button_view.grid(row=4, column=0, columnspan=4, pady=self.pady)
 
     def view(self):
@@ -56,14 +46,13 @@ class EasyHomeWindow(tk.Frame):
             # 選択したフォルダ内のtxtデータを読み込み
             list_view = [self.list_folder.get(i) for i in range(self.num_folders)]
             pixel = (self.x_pixel.get(), self.y_pixel.get())
-            subst = (self.x_subst.get(), self.y_subst.get())
             dict_df = func.read_txt(list_view)
             # ウィンドウ作成
             self.root_view = tk.Toplevel(self)
             self.notebook = ttk.Notebook(self.root_view)
             for value in dict_df.values():
                 self.tab_tmp = tk.Frame(master=self.notebook)
-                self.frame_tmp = func.EasyViewer(master=self.tab_tmp, dir=value.dir, df=value.df, pixel=pixel, subst=subst)
+                self.frame_tmp = func.EasyViewer(master=self.tab_tmp, dir=value.dir, df=value.df, pixel=pixel)
                 self.notebook.add(self.tab_tmp, text=value.dir[value.dir.rfind(os.sep)+1:])
             self.notebook.pack()
 

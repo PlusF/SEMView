@@ -2,6 +2,7 @@ import os
 import math
 import pandas as pd
 import tkinter as tk
+from tkinter import filedialog
 from PIL import Image, ImageTk, ImageEnhance
 from dataclasses import dataclass
 
@@ -113,7 +114,7 @@ class Viewer(tk.Frame):
         self.label_scale_zoom = tk.Label(self.frame_pro, text='拡大/縮小')
         self.scale_zoom = tk.Scale(self.frame_pro, variable=self.zoom_val, command=self.draw, orient=tk.HORIZONTAL, length=200, from_=3, to_=600,
                                    resolution=1, showvalue=False)
-        self.button_reset_zoom = tk.Button(self.frame_pro, command=self.reset_zoom, text='Reset', bd=0, activeforeground='red', relief=tk.RAISED)
+        self.button_reset_zoom = tk.Button(self.frame_pro, command=self.reset_zoom, text='Reset', activeforeground='red', relief=tk.RAISED)
         self.label_scale_rotate = tk.Label(self.frame_pro, text='回転')
         self.scale_rotate = tk.Scale(self.frame_pro, variable=self.rotarion_val, command=self.draw, orient=tk.HORIZONTAL, length=200, from_=-45,
                                      to_=45, resolution=0.1, showvalue=True)
@@ -158,7 +159,7 @@ class Viewer(tk.Frame):
         for (index, item), (index_tmp, item_tmp) in zip(self.df.iterrows(), self.df_tmp.iterrows()):
             item_tmp.x = (item.x - self.mean_x) * self.zoom_val.get() + self.width / 2
             item_tmp.y = (item.y - self.mean_y) * self.zoom_val.get() + self.height / 2
-            item_tmp.mag = 1 / (item.mag) * self.zoom_val.get() * 30  # 'mag'の列をサイズ情報で置換する
+            item_tmp.mag = 1 / item.mag * self.zoom_val.get() * 30  # 'mag'の列をサイズ情報で置換する
             # SEM像の範囲と同じ大きさの長方形を描画，1000倍で120um*90um（self.zoom_val=30で3.6px*2.7px）の像とする．
             self.canvas.create_rectangle(item_tmp.x, item_tmp.y, item_tmp.x + item_tmp.mag * 4, item_tmp.y + item_tmp.mag * 3, tags=index,
                                          fill='white', activeoutline='red')
@@ -213,7 +214,7 @@ class Viewer(tk.Frame):
             # 移動処理と描画用の座標に補正
             tmp_x += self.width / 2 - self.move_x_val.get()
             tmp_y += self.height / 2 - self.move_y_val.get()
-            item_tmp.mag = 1 / (item.mag) * self.zoom_val.get() * 30
+            item_tmp.mag = 1 / item.mag * self.zoom_val.get() * 30
             self.canvas.coords(index, tmp_x, tmp_y, tmp_x + item_tmp.mag * 4, tmp_y + item_tmp.mag * 3)
         self.zoom_scale_bar()
 
@@ -253,3 +254,97 @@ class Viewer(tk.Frame):
         img_enhancer = ImageEnhance.Contrast(img)
         enhanced_img = img_enhancer.enhance(self.contrast_val.get() * 0.02)
         return enhanced_img
+
+
+class EasyViewer(tk.Frame):
+    def __init__(self, master=None, dir=None, df=None, pixel=(1280, 960)):
+        super().__init__(master)
+        self.master = master
+        self.dir = dir
+        self.df = df
+        self.pixel = pixel  # px
+        self.create_widgets()
+        self.show_img()
+
+    def create_widgets(self):
+        # 必要な変数の宣言
+        self.width = self.pixel[0]
+        self.height = self.pixel[1]
+        self.rect_tag = tk.StringVar()
+        self.std_rect_tag = None
+        self.std_x = tk.DoubleVar()
+        self.std_y = tk.DoubleVar()
+        self.selected_x = tk.DoubleVar()
+        self.selected_y = tk.DoubleVar()
+        self.move_x_val = tk.DoubleVar()
+        self.move_y_val = tk.DoubleVar()
+        self.zoom_val = tk.DoubleVar()
+        self.zoom_val.set(30)
+        self.rotarion_val = tk.DoubleVar()
+        self.scale_list = ['5mm', '2mm', '1mm', '500\u03bcm']
+        self.brightness_val = tk.DoubleVar()
+        self.brightness_val.set(50)
+        self.contrast_val = tk.DoubleVar()
+        self.contrast_val.set(50)
+
+        # master内のwidget
+        self.canvas_img = tk.Canvas(self.master, width=self.width, height=self.height, cursor='circle', bd=3, relief=tk.RIDGE)  # 画像表示用
+        self.frame_con = tk.Frame(self.master, width=self.width, height=self.height / 2)  # 明るさ，コントラスト調整用
+        self.canvas_img.grid(row=0, column=0, padx=0, pady=0)
+        self.frame_con.grid(row=1, column=0, padx=0, pady=0)
+
+        # frame_con内のwidget
+        self.label_brightness = tk.Label(self.frame_con, text='Brightness')
+        self.label_contrast = tk.Label(self.frame_con, text='Contrast')
+        self.scale_brightness = tk.Scale(self.frame_con, variable=self.brightness_val, command=None, orient=tk.HORIZONTAL, length=self.width / 2,
+                                         from_=1, to_=500, resolution=1, showvalue=False)
+        self.scale_contrast = tk.Scale(self.frame_con, variable=self.contrast_val, command=None, orient=tk.HORIZONTAL, length=self.width / 2, from_=1,
+                                       to_=500, resolution=1, showvalue=False)
+        self.button_show = tk.Button(self.frame_con, command=self.show_img, text='Show', activeforeground='red', relief=tk.RAISED)
+        self.button_save = tk.Button(self.frame_con, command=self.save, text='Save', relief=tk.RAISED)
+
+        self.label_brightness.grid(row=0, column=0)
+        self.scale_brightness.grid(row=0, column=1)
+        self.label_contrast.grid(row=1, column=0)
+        self.scale_contrast.grid(row=1, column=1)
+        self.button_show.grid(row=0, column=2, rowspan=2)
+        self.button_save.grid(row=0, column=3, rowspan=2)
+
+    def show_img(self):
+        self.canvas_img.delete('all')
+
+        size = {'x': 126, 'y': 95}  # 1倍でとったときのtif画像のサイズ[mm]
+        self.img = Image.new('RGB', self.pixel)
+        x0, y0 = self.df.x.min(), self.df.y.min()
+        x1, y1 = max(self.df.x + size['x'] / self.df.mag), max(self.df.y + size['y'] / self.df.mag)
+        mag = min(self.pixel[0] / (x1 - x0), self.pixel[1] / (y1 - y0))
+        for name, info in self.df.iterrows():
+            x = info.x  # um
+            y = info.y  # um
+            x_um = size['x'] / info.mag
+            y_um = size['y'] / info.mag
+            tiffile = os.path.join(self.dir, f'{name}.tif')
+            img_tmp = Image.open(tiffile).resize((int(x_um * mag), int(y_um * mag)))
+            self.img.paste(img_tmp, (int((x - x0) * mag), int((y - y0) * mag)))
+
+        self.img = self.brightness(self.img)
+        self.img = self.contrast(self.img)
+        self.img = self.img.resize((self.pixel[0], self.pixel[1]))
+        self.img_show = ImageTk.PhotoImage(image=self.img)
+        self.canvas_img.create_image(self.width / 2, self.height / 2, image=self.img_show)
+
+    def brightness(self, img):
+        self.brightness_val.set(self.scale_brightness.get())
+        img_enhancer = ImageEnhance.Brightness(img)
+        enhanced_img = img_enhancer.enhance(self.brightness_val.get() * 0.02)
+        return enhanced_img
+
+    def contrast(self, img):
+        self.contrast_val.set(self.scale_contrast.get())
+        img_enhancer = ImageEnhance.Contrast(img)
+        enhanced_img = img_enhancer.enhance(self.contrast_val.get() * 0.02)
+        return enhanced_img
+
+    def save(self):
+        filename = filedialog.asksaveasfilename()
+        self.img.save(filename)
