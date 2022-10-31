@@ -257,13 +257,12 @@ class Viewer(tk.Frame):
 
 
 class EasyViewer(tk.Frame):
-    def __init__(self, master=None, dir=None, df=None, pixel=(1280, 960), subst=(20, 20)):
+    def __init__(self, master=None, dir=None, df=None, pixel=(1280, 960)):
         super().__init__(master)
         self.master = master
         self.dir = dir
         self.df = df
         self.pixel = pixel  # px
-        self.subst = subst  # mm
         self.create_widgets()
         self.show_img()
 
@@ -314,23 +313,23 @@ class EasyViewer(tk.Frame):
     def show_img(self):
         self.canvas_img.delete('all')
 
-        size = {'x': 126000, 'y': 95000}
+        size = {'x': 126, 'y': 95}  # 1倍でとったときのtif画像のサイズ[mm]
         self.img = Image.new('RGB', self.pixel)
-        size_subst = (self.subst[0] * 1000, self.subst[1] * 1000)  # umに直す
-        mag = min(self.pixel[0] / size_subst[0], self.pixel[1] / size_subst[1])
-        x0, y0 = self.df.x.min() * 1000, self.df.y.min() * 1000
-        for index, row in self.df.iterrows():
-            x1 = row.x * 1000  # um
-            y1 = row.y * 1000  # um
-            x_um = size['x'] / row.mag
-            y_um = size['y'] / row.mag
-            filename = os.path.join(self.dir, f'{index}.tif')
-            img_tmp = Image.open(filename).resize((int(x_um * mag), int(y_um * mag)))
-            self.img.paste(img_tmp, (int((x1 - x0) * mag), int((y1 - y0) * mag)))
+        x0, y0 = self.df.x.min(), self.df.y.min()
+        x1, y1 = max(self.df.x + size['x'] / self.df.mag), max(self.df.y + size['y'] / self.df.mag)
+        mag = min(self.pixel[0] / (x1 - x0), self.pixel[1] / (y1 - y0))
+        for name, info in self.df.iterrows():
+            x = info.x  # um
+            y = info.y  # um
+            x_um = size['x'] / info.mag
+            y_um = size['y'] / info.mag
+            tiffile = os.path.join(self.dir, f'{name}.tif')
+            img_tmp = Image.open(tiffile).resize((int(x_um * mag), int(y_um * mag)))
+            self.img.paste(img_tmp, (int((x - x0) * mag), int((y - y0) * mag)))
 
         self.img = self.brightness(self.img)
         self.img = self.contrast(self.img)
-        self.img = self.img.resize((640, 480))
+        self.img = self.img.resize((self.pixel[0], self.pixel[1]))
         self.img_show = ImageTk.PhotoImage(image=self.img)
         self.canvas_img.create_image(self.width / 2, self.height / 2, image=self.img_show)
 
