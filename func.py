@@ -346,5 +346,5 @@ class EasyViewer(tk.Frame):
         return enhanced_img
 
     def save(self):
-        filename = filedialog.asksaveasfilename()
+        filename = filedialog.asksaveasfilename(filetypes=[("Bitmap", ".bmp"), ("PNG", ".png"), ("JPEG", ".jpg"), ("Tiff", ".tif")])
         self.img.save(filename)
