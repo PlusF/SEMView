@@ -3,6 +3,7 @@ import math
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog
+from tkinter import messagebox
 from PIL import Image, ImageTk, ImageEnhance
 from dataclasses import dataclass
 
@@ -290,8 +291,8 @@ class EasyViewer(tk.Frame):
         # master内のwidget
         self.canvas_img = tk.Canvas(self.master, width=self.width, height=self.height, cursor='circle', bd=3, relief=tk.RIDGE)  # 画像表示用
         self.frame_con = tk.Frame(self.master, width=self.width, height=self.height / 2)  # 明るさ，コントラスト調整用
-        self.canvas_img.grid(row=0, column=0, padx=0, pady=0)
-        self.frame_con.grid(row=1, column=0, padx=0, pady=0)
+        self.canvas_img.grid(row=1, column=0, padx=0, pady=0)
+        self.frame_con.grid(row=0, column=0, padx=0, pady=0)
 
         # frame_con内のwidget
         self.label_brightness = tk.Label(self.frame_con, text='Brightness')
@@ -303,12 +304,12 @@ class EasyViewer(tk.Frame):
         self.button_show = tk.Button(self.frame_con, command=self.show_img, text='Show', activeforeground='red', relief=tk.RAISED)
         self.button_save = tk.Button(self.frame_con, command=self.save, text='Save', relief=tk.RAISED)
 
-        self.label_brightness.grid(row=0, column=0)
-        self.scale_brightness.grid(row=0, column=1)
-        self.label_contrast.grid(row=1, column=0)
-        self.scale_contrast.grid(row=1, column=1)
-        self.button_show.grid(row=0, column=2, rowspan=2)
-        self.button_save.grid(row=0, column=3, rowspan=2)
+        self.label_brightness.grid(row=1, column=0)
+        self.scale_brightness.grid(row=1, column=1)
+        self.label_contrast.grid(row=2, column=0)
+        self.scale_contrast.grid(row=2, column=1)
+        self.button_show.grid(row=0, column=0)
+        self.button_save.grid(row=0, column=1)
 
     def show_img(self):
         self.canvas_img.delete('all')
@@ -324,6 +325,9 @@ class EasyViewer(tk.Frame):
             x_um = size['x'] / info.mag
             y_um = size['y'] / info.mag
             tiffile = os.path.join(self.dir, f'{name}.tif')
+            if int(x_um * mag) <= 0 or int(y_um * mag) <= 0:
+                messagebox.showerror('Error', 'Resolution is too low. Please specify higher resolution.')
+                return
             img_tmp = Image.open(tiffile).resize((int(x_um * mag), int(y_um * mag)))
             self.img.paste(img_tmp, (int((x - x0) * mag), int((y - y0) * mag)))
 
