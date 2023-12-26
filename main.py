@@ -1,9 +1,10 @@
-import func
 import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
+from reader import read_metadata_in_folders
+from viewer import Viewer
 
 
 class HomeWindow(tk.Frame):
@@ -35,13 +36,13 @@ class HomeWindow(tk.Frame):
         else:
             # 選択したフォルダ内のtxtデータを読み込み
             self.list_view = [self.list_folder.get(i) for i in range(self.num_folders)]
-            self.dict_df = func.read_txt(self.list_view)
+            self.dict_df = read_metadata_in_folders(self.list_view)
             # ウィンドウ作成
             self.root_view = tk.Toplevel(self)
             self.notebook = ttk.Notebook(self.root_view)
             for value in self.dict_df.values():
                 self.tab_tmp = tk.Frame(master=self.notebook)
-                self.frame_tmp = func.Viewer(master=self.tab_tmp, dir=value.dir, df=value.df)
+                self.frame_tmp = Viewer(master=self.tab_tmp, dir=value.dir, df=value.df)
                 self.notebook.add(self.tab_tmp, text=value.dir[value.dir.rfind(os.sep)+1:])
             self.notebook.pack()
 

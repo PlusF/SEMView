@@ -1,4 +1,4 @@
-import func
+import viewer
 import os
 import tkinter as tk
 from tkinter import ttk
@@ -46,7 +46,7 @@ class EasyHomeWindow(tk.Frame):
             # 選択したフォルダ内のtxtデータを読み込み
             list_view = [self.list_folder.get(i) for i in range(self.num_folders)]
             pixel = (self.x_pixel.get(), self.y_pixel.get())
-            dict_df = func.read_txt(list_view)
+            dict_df = func.read_metadata_in_folders(list_view)
             # ウィンドウ作成
             self.root_view = tk.Toplevel(self)
             self.notebook = ttk.Notebook(self.root_view)
