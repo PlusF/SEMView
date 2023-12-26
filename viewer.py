@@ -250,8 +250,8 @@ class Viewer(tk.Frame):
         img = self.brightness(img)
         img = self.contrast(img)
         img = img.resize((640, 480))
-        img_show = ImageTk.PhotoImage(image=img)
-        self.canvas_img.create_image(self.width / 2, self.height / 2, image=img_show)
+        self.img_show = ImageTk.PhotoImage(image=img)
+        self.canvas_img.create_image(self.width / 2, self.height / 2, image=self.img_show)
 
     def set_std(self, event):
         event.widget.itemconfig(self.std_rect_tag, fill='white')
@@ -388,9 +388,9 @@ class EasyViewer(tk.Frame):
 
         img = self.brightness(img)
         img = self.contrast(img)
-        img = img.resize((self.pixel[0], self.pixel[1]))
-        img_show = ImageTk.PhotoImage(image=img)
-        self.canvas_img.create_image(self.width / 2, self.height / 2, image=img_show)
+        self.img = img.resize((self.pixel[0], self.pixel[1]))
+        self.img_show = ImageTk.PhotoImage(image=self.img)
+        self.canvas_img.create_image(self.width / 2, self.height / 2, image=self.img_show)
 
     def brightness(self, img):
         self.brightness_val.set(self.scale_brightness.get())
