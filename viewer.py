@@ -5,24 +5,29 @@ from tkinter import filedialog
 from tkinter import messagebox
 
 import numpy as np
+import pandas as pd
 from PIL import Image, ImageTk, ImageEnhance
 
 
 # SEM像を見るためのウィンドウ
 class Viewer(tk.Frame):
-    def __init__(self, master=None, dir=None, df=None):
+    def __init__(self, master, dir: str, df: pd.DataFrame):
         super().__init__(master)
         self.master = master
         self.dir = dir
         self.df = df
+        self.filenames = sorted(list(self.df.index))
+        self.mean_x = self.df.x.mean()
+        self.mean_y = self.df.y.mean()
         self.create_widgets()
-        self.plot()
+        self.bind_events()
+        self.initial_draw()
 
     def create_widgets(self):
         # 必要な変数の宣言
         self.width = 640
         self.height = 480
-        self.rect_tag = tk.StringVar()
+        self.selected_tag = tk.StringVar()
         self.std_rect_tag = None
         self.std_x = 0
         self.std_y = 0
@@ -48,9 +53,6 @@ class Viewer(tk.Frame):
                                      resolution=0.1, from_=-2 * self.width, to_=2 * self.width, showvalue=False)
         self.scale_move_y = tk.Scale(self.master, variable=self.move_y_val, command=self.draw, orient=tk.VERTICAL, length=self.height, resolution=0.1,
                                      from_=-2 * self.height, to_=2 * self.height, showvalue=False)
-        self.master.master.master.bind("<MouseWheel>", self.mouse_y_scroll)
-        self.master.master.master.bind("<Shift-MouseWheel>", self.mouse_x_scroll)
-        self.master.master.master.bind("<Control-MouseWheel>", self.mouse_zoom)
 
         self.canvas.grid(row=0, column=0, padx=0, pady=0)
         self.scale_move_x.grid(row=1, column=0)
@@ -74,7 +76,7 @@ class Viewer(tk.Frame):
         self.label_std_x = tk.Label(self.frame_pro, textvariable=self.selected_x)
         self.label_std_y = tk.Label(self.frame_pro, textvariable=self.selected_y)
         self.label_selected_name = tk.Label(self.frame_pro, text='ファイル名: ')
-        self.label_selected_filename = tk.Label(self.frame_pro, textvariable=self.rect_tag)
+        self.label_selected_filename = tk.Label(self.frame_pro, textvariable=self.selected_tag)
         self.label_scale_zoom = tk.Label(self.frame_pro, text='拡大/縮小')
         self.scale_zoom = tk.Scale(self.frame_pro, variable=self.zoom_val, command=self.draw, orient=tk.HORIZONTAL, length=200, from_=3, to_=600,
                                    resolution=1, showvalue=False)
@@ -123,35 +125,78 @@ class Viewer(tk.Frame):
         self.scale_contrast.grid(row=1, column=2)
         self.button_contrast_up.grid(row=1, column=3)
 
+    def bind_events(self):
+        # スクロール関係
+        self.master.master.master.bind("<MouseWheel>", self.mouse_y_scroll)
+        self.master.master.master.bind("<Shift-MouseWheel>", self.mouse_x_scroll)
+        self.master.master.master.bind("<Control-MouseWheel>", self.mouse_zoom)
+        # キー関係
+        self.master.master.master.bind("<KeyPress>", self.press_key)
+
+    def press_key(self, event):
+        if event.keysym == 'a':
+            self.move_x_val.set(self.move_x_val.get() - 20)
+            self.draw()
+        elif event.keysym == 'd':
+            self.move_x_val.set(self.move_x_val.get() + 20)
+            self.draw()
+        elif event.keysym == 'w':
+            self.move_y_val.set(self.move_y_val.get() - 20)
+            self.draw()
+        elif event.keysym == 's':
+            self.move_y_val.set(self.move_y_val.get() + 20)
+            self.draw()
+        elif event.keysym == 'r':
+            self.reset_zoom()
+            self.reset_rotation()
+        elif event.keysym in ['Right', 'Down']
+            index = self.filenames.index(self.selected_tag.get())
+            next_index = index + 1 if index < len(self.filenames) - 1 else 0
+            next_tag = self.filenames[next_index]
+            self.select_rect_by_tag(next_tag)
+        elif event.keysym in ['Left', 'Up']:
+            index = self.filenames.index(self.selected_tag.get())
+            pre_index = index - 1
+            pre_tag = self.filenames[pre_index]
+            self.select_rect_by_tag(pre_tag)
+
     # SEM画像の座標をプロット
-    def plot(self):
-        self.mean_x = self.df.x.mean()
-        self.mean_y = self.df.y.mean()
+    def initial_draw(self):
         for index, item in self.df.iterrows():
             x = (item.x - self.mean_x) * self.zoom_val.get() + self.width / 2
             y = (item.y - self.mean_y) * self.zoom_val.get() + self.height / 2
             img_size = item.img_size * self.zoom_val.get()
-            self.canvas.create_rectangle(x, y, x + img_size[0], y + img_size[1], tags=index,
+            tag = str(index)
+            self.canvas.create_rectangle(x, y, x + img_size[0], y + img_size[1], tags=tag,
                                          fill='white', activeoutline='red')
-            self.canvas.lift(index)
-            self.canvas.tag_bind(index, '<Button-1>', self.select)
-            self.canvas.tag_bind(index, '<Button-2>', self.set_std)
-            self.canvas.tag_bind(index, '<Button-3>', self.set_std)
+            self.canvas.lift(tag)
+            self.canvas.tag_bind(tag, '<Button-1>', self.get_select_rect_by_tag(tag))
+            self.canvas.tag_bind(tag, '<Button-2>', self.set_std)
+            self.canvas.tag_bind(tag, '<Button-3>', self.set_std)
         self.canvas.lift('scale_bar')
         self.canvas.lift('scale_val')
+        self.select_rect_by_tag(self.filenames[0])
 
-    def select(self, event):
-        self.pre_rect_tag = self.rect_tag.get()
-        self.rect_tag.set(self.canvas.gettags(self.canvas.find_closest(event.x, event.y)[0])[0])
-        self.show_img()  # tif画像を表示
+    def get_select_rect_by_tag(self, tag):
+        return lambda e: self.select_rect_by_tag(tag)
+
+    def select_rect_by_tag(self, tag):
+        if self.selected_tag.get() == self.std_rect_tag:
+            self.canvas.itemconfig(self.selected_tag.get(), fill='green')
+        else:
+            self.canvas.itemconfig(self.selected_tag.get(), fill='white')
+        self.selected_tag.set(tag)
+        self.canvas.itemconfig(tag, fill='red')
+        self.show_img()
+        self.calc_coord()
+
+    def calc_coord(self):
         # 回転処理
-        x = self.df.x[self.rect_tag.get()] - self.std_x
-        y = self.df.y[self.rect_tag.get()] - self.std_y
+        x = self.df.x[self.selected_tag.get()] - self.std_x
+        y = self.df.y[self.selected_tag.get()] - self.std_y
         x, y = self.calc_rot(x, y)
         self.selected_x.set(round(x, 3))
         self.selected_y.set(-1 * round(y, 3))
-        event.widget.itemconfig(self.pre_rect_tag, fill='white')
-        event.widget.itemconfig(self.rect_tag.get(), fill='red')
 
     def calc_rot(self, x, y):
         theta = math.radians(self.rotarion_val.get())
@@ -185,10 +230,10 @@ class Viewer(tk.Frame):
         self.draw()
 
     def show_img(self, event=None):
-        if self.rect_tag.get() == '':
+        if self.selected_tag.get() == '':
             return
         self.canvas_img.delete('all')
-        self.img = Image.open(os.path.join(self.dir, f'{self.rect_tag.get()}.tif'))
+        self.img = Image.open(os.path.join(self.dir, f'{self.selected_tag.get()}.tif'))
         self.img = self.brightness(self.img)
         self.img = self.contrast(self.img)
         self.img = self.img.resize((640, 480))
@@ -196,11 +241,10 @@ class Viewer(tk.Frame):
         self.canvas_img.create_image(self.width / 2, self.height / 2, image=self.img_show)
 
     def set_std(self, event):
-        self.pre_std_rect_tag = self.std_rect_tag
+        event.widget.itemconfig(self.std_rect_tag, fill='white')
         self.std_rect_tag = self.canvas.gettags(self.canvas.find_closest(event.x, event.y)[0])[0]
         self.std_x = self.df.x[self.std_rect_tag]
         self.std_y = self.df.y[self.std_rect_tag]
-        event.widget.itemconfig(self.pre_std_rect_tag, fill='white')
         event.widget.itemconfig(self.std_rect_tag, fill='green')
 
     def draw(self, event=None):
@@ -214,8 +258,9 @@ class Viewer(tk.Frame):
             x += self.width / 2 - self.move_x_val.get()
             y += self.height / 2 - self.move_y_val.get()
             img_size = item.img_size * self.zoom_val.get()
-            self.canvas.coords(index, x, y, x + img_size[0], y + img_size[1])
+            self.canvas.coords(str(index), x, y, x + img_size[0], y + img_size[1])
         self.zoom_scale_bar()
+        self.calc_coord()
 
     def reset_rotation(self):
         self.rotarion_val.set(0)
