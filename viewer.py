@@ -3,7 +3,6 @@ import math
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
-
 import numpy as np
 import pandas as pd
 from PIL import Image, ImageTk, ImageEnhance
@@ -17,8 +16,10 @@ class Viewer(tk.Frame):
         self.dir = dir
         self.df = df
         self.filenames = sorted(list(self.df.index))
-        self.mean_x = self.df.x.mean()
-        self.mean_y = self.df.y.mean()
+        self.center_x = self.df.x.mean()
+        self.center_y = self.df.y.mean()
+        self.zoom_org_x = self.center_x
+        self.zoom_org_y = self.center_y
         self.create_widgets()
         self.bind_events()
         self.initial_draw()
@@ -149,7 +150,7 @@ class Viewer(tk.Frame):
         elif event.keysym == 'r':
             self.reset_zoom()
             self.reset_rotation()
-        elif event.keysym in ['Right', 'Down']
+        elif event.keysym in ['Right', 'Down']:
             index = self.filenames.index(self.selected_tag.get())
             next_index = index + 1 if index < len(self.filenames) - 1 else 0
             next_tag = self.filenames[next_index]
@@ -163,8 +164,8 @@ class Viewer(tk.Frame):
     # SEM画像の座標をプロット
     def initial_draw(self):
         for index, item in self.df.iterrows():
-            x = (item.x - self.mean_x) * self.zoom_val.get() + self.width / 2
-            y = (item.y - self.mean_y) * self.zoom_val.get() + self.height / 2
+            x = (item.x - self.center_x) * self.zoom_val.get() + self.width / 2
+            y = (item.y - self.center_y) * self.zoom_val.get() + self.height / 2
             img_size = item.img_size * self.zoom_val.get()
             tag = str(index)
             self.canvas.create_rectangle(x, y, x + img_size[0], y + img_size[1], tags=tag,
@@ -181,14 +182,26 @@ class Viewer(tk.Frame):
         return lambda e: self.select_rect_by_tag(tag)
 
     def select_rect_by_tag(self, tag):
-        if self.selected_tag.get() == self.std_rect_tag:
-            self.canvas.itemconfig(self.selected_tag.get(), fill='green')
+        pre_tag = self.selected_tag.get()
+        if pre_tag == self.std_rect_tag:
+            self.canvas.itemconfig(pre_tag, fill='green')
         else:
-            self.canvas.itemconfig(self.selected_tag.get(), fill='white')
+            self.canvas.itemconfig(pre_tag, fill='white')
         self.selected_tag.set(tag)
         self.canvas.itemconfig(tag, fill='red')
         self.show_img()
         self.calc_coord()
+        self.zoom_org_x = self.df.x[tag] - self.center_x
+        self.zoom_org_y = self.df.y[tag] - self.center_y
+        # scrollの位置を調整する
+        if pre_tag == '':  # 初回
+            dx = self.center_x - self.df.x[tag]
+            dy = self.center_y - self.df.y[tag]
+        else:
+            dx = self.df.x[pre_tag] - self.df.x[tag]
+            dy = self.df.y[pre_tag] - self.df.y[tag]
+        self.move_x_val.set(self.move_x_val.get() + dx * self.zoom_val.get())
+        self.move_y_val.set(self.move_y_val.get() + dy * self.zoom_val.get())
 
     def calc_coord(self):
         # 回転処理
@@ -233,12 +246,12 @@ class Viewer(tk.Frame):
         if self.selected_tag.get() == '':
             return
         self.canvas_img.delete('all')
-        self.img = Image.open(os.path.join(self.dir, f'{self.selected_tag.get()}.tif'))
-        self.img = self.brightness(self.img)
-        self.img = self.contrast(self.img)
-        self.img = self.img.resize((640, 480))
-        self.img_show = ImageTk.PhotoImage(image=self.img)
-        self.canvas_img.create_image(self.width / 2, self.height / 2, image=self.img_show)
+        img = Image.open(os.path.join(self.dir, f'{self.selected_tag.get()}.tif'))
+        img = self.brightness(img)
+        img = self.contrast(img)
+        img = img.resize((640, 480))
+        img_show = ImageTk.PhotoImage(image=img)
+        self.canvas_img.create_image(self.width / 2, self.height / 2, image=img_show)
 
     def set_std(self, event):
         event.widget.itemconfig(self.std_rect_tag, fill='white')
@@ -249,11 +262,14 @@ class Viewer(tk.Frame):
 
     def draw(self, event=None):
         for index, item in self.df.iterrows():
-            # 平均値を基準にして拡大処理
-            x = (item.x - self.mean_x) * self.zoom_val.get()
-            y = (item.y - self.mean_y) * self.zoom_val.get()
+            # 全体の中心を基準に
+            x = item.x - self.center_x
+            y = item.y - self.center_y
             # 回転処理 θ [rad]
             x, y = self.calc_rot(x, y)
+            # 選択中の場所を中心に拡大縮小
+            x = (x - self.zoom_org_x) * self.zoom_val.get() + self.zoom_org_x
+            y = (y - self.zoom_org_y) * self.zoom_val.get() + self.zoom_org_y
             # 移動処理と描画用の座標に補正
             x += self.width / 2 - self.move_x_val.get()
             y += self.height / 2 - self.move_y_val.get()
@@ -354,7 +370,7 @@ class EasyViewer(tk.Frame):
         self.canvas_img.delete('all')
 
         size = {'x': 126, 'y': 95}  # 1倍でとったときのtif画像のサイズ[mm]
-        self.img = Image.new('RGB', self.pixel)
+        img = Image.new('RGB', self.pixel)
         x0, y0 = self.df.x.min(), self.df.y.min()
         x1, y1 = max(self.df.x + size['x'] / self.df.mag), max(self.df.y + size['y'] / self.df.mag)
         mag = min(self.pixel[0] / (x1 - x0), self.pixel[1] / (y1 - y0))
@@ -368,13 +384,13 @@ class EasyViewer(tk.Frame):
                 messagebox.showerror('Error', 'Resolution is too low. Please specify higher resolution.')
                 return
             img_tmp = Image.open(tiffile).resize((int(x_um * mag), int(y_um * mag)))
-            self.img.paste(img_tmp, (int((x - x0) * mag), int((y - y0) * mag)))
+            img.paste(img_tmp, (int((x - x0) * mag), int((y - y0) * mag)))
 
-        self.img = self.brightness(self.img)
-        self.img = self.contrast(self.img)
-        self.img = self.img.resize((self.pixel[0], self.pixel[1]))
-        self.img_show = ImageTk.PhotoImage(image=self.img)
-        self.canvas_img.create_image(self.width / 2, self.height / 2, image=self.img_show)
+        img = self.brightness(img)
+        img = self.contrast(img)
+        img = img.resize((self.pixel[0], self.pixel[1]))
+        img_show = ImageTk.PhotoImage(image=img)
+        self.canvas_img.create_image(self.width / 2, self.height / 2, image=img_show)
 
     def brightness(self, img):
         self.brightness_val.set(self.scale_brightness.get())
