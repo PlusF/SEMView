@@ -259,6 +259,7 @@ class Viewer(tk.Frame):
         self.std_x = self.df.x[self.std_rect_tag]
         self.std_y = self.df.y[self.std_rect_tag]
         event.widget.itemconfig(self.std_rect_tag, fill='green')
+        self.calc_coord()
 
     def draw(self, event=None):
         for index, item in self.df.iterrows():
